@@ -7,6 +7,7 @@ Ongoing learning project for myself, the psudocode is partially modified in refe
 ### Notice:
 This is **NOT** compilable source code, despite some functions being filled in, this would need extensive work to make buildable.. 
 
+There will be parts where I have no clue, look for comments `// TODO` for sections I have not been able to rewrite
 
 
 ### Example:
