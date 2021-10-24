@@ -1,12 +1,17 @@
-# xboxkrnl.exe build 5445 XDK CHK
-My attempt at comparing the 5455 XDK kernel against the 4400 tree, NOT COMPILABLE CODE (Mainly psudocode with sections filled in)
+///
+/// xboxkrnl.c
+/// decompiled from build 5455
+///
+/// empyreal96
+///
+#include "ntos.h"
+#include <bldr.h>
 
-
-
-### Example:
-
-```c++
-
+VOID  main(
+		IN PUCHAR LoadOptions,
+		IN const UCHAR* CryptKeys);
+		
+		
 VOID main(
 		IN PUCHAR LoadOptions,
 		IN const UCHAR* CryptKeys
@@ -59,5 +64,3 @@ VOID main(
   ///
   KiSystemStartup();
 }
-```
-
