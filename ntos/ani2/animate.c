@@ -19,6 +19,7 @@
 #include "ani.h"
 
 // Tell linker to put startup animation code and data into INIT section
+#pragma comment(linker, "/merge:INIT_RD=INIT")
 #pragma comment(linker, "/merge:INIT_RW=INIT")
 #pragma comment(linker, "/merge:D3D=INIT")
 #pragma comment(linker, "/merge:D3D_RD=INIT")
