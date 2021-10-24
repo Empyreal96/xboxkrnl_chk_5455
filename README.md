@@ -1,6 +1,12 @@
 # xboxkrnl.exe build 5445 XDK CHK
 My attempt at comparing the 5455 XDK kernel against the 4400 tree, NOT COMPILABLE CODE (Mainly psudocode with sections filled in)
 
+Ongoing learning project for myself, the psudocode is partially modified in refence with the leaked 4400 tree, I have very little C and C++ knowledge so expect errors.. 
+
+
+### Notice:
+This is **NOT** compilable source code, despite some functions being filled in, this would need extensive work to make buildable.. 
+
 
 
 ### Example:
