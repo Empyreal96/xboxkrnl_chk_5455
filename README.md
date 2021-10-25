@@ -12,7 +12,7 @@ There will be parts where I have no clue, look for comments `// TODO` for sectio
 
 ### Example:
 
-```c++
+```c
 
 VOID main(
 		IN PUCHAR LoadOptions,
