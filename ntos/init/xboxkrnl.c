@@ -7,7 +7,7 @@
 #include "ntos.h"
 #include <bldr.h>
 
-VOID  main(
+VOID main(
 		IN PUCHAR LoadOptions,
 		IN const UCHAR* CryptKeys);
 		

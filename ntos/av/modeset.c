@@ -3,15 +3,13 @@
 ///
 ///
 /// empyreal96
+/// This file I am having hard time figuring out, mainly due to the XCALIBUR
+/// changes to the kernel and unnofficial source patches used as reference
 
 #include "avp.h"
 #include "xpcicfg.h"
 
 DECLSPEC_STICKY ULONG AvpCurrentMode;
-ULONG AvpMacrovisionMode;
-ULONG AvpCGMS;
-ULONG AvpCapabilities;
-DECLSPEC_STICKY PVOID AvpSavedDataAddress;
 
 // 
 // Supported frame buffer modes.
@@ -31,19 +29,19 @@ DECLSPEC_STICKY PVOID AvpSavedDataAddress;
 ULONG
 AvpCalcWSSCRC(IN ULONG Value)
 {
-  unsigned int CRC; // eax //v1
-  unsigned int i; // ecx
-  int lsb; // edx  //v3
-  int msb; // esi
+  ULONG CRC; // eax //v1
+  ULONG i; // ecx
+  ULONG lsb; // edx  //v3
+  ULONG msb; // esi
 
-  CRC = 63; // v1
+  CRC = 0x3F; // v1    0x3F=63 ?
   for ( i = 0; i < 0xE; ++i )
   {
     lsb = (CRC ^ (unsigned __int8))((Value >> i)) & 1); //v3
     msb = (32 * lsb) | (CRC >> 1) & 0xF | (16 * lsb) ^ (CRC >> 1) & 0x10; //v3  v4
     CRC = msb; //v1  v4
   }
-  return Value | (msb << 14); //v4
+  return Value | (CRC << 14); //v4   either msb or CRC
 }
 
 
@@ -53,7 +51,7 @@ AvpCalcWSSCRC(IN ULONG Value)
 ///   set the WSS and CGMS bits."
 ///
 /// TODO LOTS
-void __stdcall AvpSetWSSBits(void *RegisterBase)
+void AvpSetWSSBits(PVOID *RegisterBase)
 {
   int v1; // ecx
   unsigned int WSS; // ebx  v2
@@ -63,7 +61,7 @@ void __stdcall AvpSetWSSBits(void *RegisterBase)
   unsigned int v6; // ebx
   unsigned __int8 Val; // [esp+4h] [ebp-4h]
 
-  v1 = 0;
+  v1 = 0; // Could be WSS
   if ( (AvpCurrentMode & 0xC0000000) != 0 )
   {
     if ( (AvpCurrentMode & 0xC0000000) != 0x40000000 )
@@ -73,7 +71,7 @@ void __stdcall AvpSetWSSBits(void *RegisterBase)
   else
   {
     if ( (AvpCurrentMode & 0x10000000) != 0 )
-      v1 = 1;
+      v1 = 1;// Could be WSS
     WSS = AvpCalcWSSCRC(v1 | ((AvpCGMS | (2 * (AvpMacrovisionMode & 2 | (4 * (AvpMacrovisionMode & 1))))) << 6)); //V2
   }
   if ( TVEncoderSMBusID == 0xD4 )
@@ -113,10 +111,13 @@ void __stdcall AvpSetWSSBits(void *RegisterBase)
 ///
 /// Very different to 4400
 /// TODO LOTS
-void __stdcall AvpEnableSCART(void *RegisterBase, unsigned int iTV)
+VOID
+AvpEnableSCART(
+		IN PVOID RegisterBase, 
+		IN ULONG iTV)
 {
   int v2; // ecx
-  unsigned __int8 *v3; // esi
+  unsigned __int8 *v3; // esi   // Possibly *pByte
   unsigned __int8 *v4; // edi
   unsigned __int8 v5; // al
   unsigned int v6; // ebx
@@ -196,12 +197,19 @@ void __stdcall AvpEnableSCART(void *RegisterBase, unsigned int iTV)
 ///  Initilise streams to the FB > TV Encoder
 ///
 ///
-unsigned int __stdcall AvSetDisplayMode(void *RegisterBase, unsigned int Step, unsigned int Mode, unsigned int Format, unsigned int Pitch, unsigned int FrameBuffer)
+ULONG
+AvSetDisplayMode(
+		IN PVOID RegisterBase, 
+		IN ULONG Step, 
+		IN ULONG Mode, 
+		IN ULONG Format,
+		IN ULONG Pitch, 
+		IN ULONG FrameBuffer)
 {
   unsigned int v6; // ecx
   unsigned int v7; // esi
   int v8; // eax
-  unsigned int v9; // eax
+  unsigned int SelectedTVTable; // eax v9
   unsigned int v10; // eax
   unsigned int v11; // eax
   unsigned __int8 v12; // al
@@ -296,7 +304,7 @@ unsigned int __stdcall AvSetDisplayMode(void *RegisterBase, unsigned int Step, u
     Mode = 251724033;
   }
   
-  v7 = (Mode & 0xC0000000); //v6
+  //v7 = (Mode & 0xC0000000); //v6
   OutputMode = (Mode & 0xC0000000); //v6
   iCRTC = BYTE1(Mode); //v6
   iTV = (Mode & 0x7F); //v6 v8
@@ -306,30 +314,30 @@ unsigned int __stdcall AvSetDisplayMode(void *RegisterBase, unsigned int Step, u
   
   if ( v8 == 1 && BYTE1(Mode) == 7 ) //v6
   {
-    if ( v7 != 0x80000000 )
+    if ( (Mode & 0xC0000000) != 0x80000000 ) //v7
       goto LABEL_12;
     v8 = 4;
   }
   
-  if ( v7 != 0x80000000 )
+  if ( (Mode & 0xC0000000) != 0x80000000 ) // v7
   {
 
 LABEL_12:
   
   if ( XboxGameRegion == 2 )
-      v9 = SDTVJapanTable[v8];
+      SelectedTVTable = SDTVJapanTable[v8];// v9
     else
-      v9 = SDTVTable[v8];
+      SelectedTVTable = SDTVTable[v8];// v9
     goto LABEL_15;
   }
 
   if ( XboxGameRegion == 2 )
-    v9 = HDTVJapanTable[v8];
+    SelectedTVTable = HDTVJapanTable[v8];// v9
   else
-    v9 = HDTVTable[v8];
+    SelectedTVTable = HDTVTable[v8];// v9
 
 LABEL_15:
-  iTV = v9;
+  iTV = SelectedTVTable; // v9
 
 LABEL_16:
   DACs = HIBYTE(Mode & 0xF)//v6;
@@ -369,20 +377,20 @@ LABEL_25:
     if ( Step == 0 )
       RtlAssert("Step == 0", "d:\\xbox-apr03\\private\\ntos\\av\\modeset.c", 0xCFu, 0);
     
-	*((_DWORD *)RegisterBase + 1704320) = GeneralControl;
+	REG_WR32(RegisterBase + 1704320) = GeneralControl; //*((_DWORD *)   1704320 = NV_PRAMDAC_GENERAL_CONTROL?
     
 	if ( AvpDump )
       DbgPrint("%08X = %08X\n", 6817280, GeneralControl);
     
-	v10 = AvpDump;
+	//v10 = AvpDump;
     AvpDump = 0;
-    *((_BYTE *)RegisterBase + 6296532) = 31;
-    Step = v10;
+    CRTC_WR(RegisterBase + 6296532) = 31;//*((_BYTE *)
+    Step = AvpDump;
     
 	if ( AvpDump )
       DbgPrint("%08X = %08X\n", 6296532, 31);
     
-	*((_BYTE *)RegisterBase + 6296533) = 87;
+	CRTC_WR(RegisterBase + 6296533) = 87; //*((_BYTE *)
     
 	if ( AvpDump )
       DbgPrint("%08X = %08X\n", 6296533, 87);
@@ -392,19 +400,19 @@ LABEL_25:
 	if ( Step )
       DbgPrint("CR%02X = %02X\n", 31, 87);
     
-	v11 = AvpDump;
+	//v11 = AvpDump;
     AvpDump = 0;
-    *((_BYTE *)RegisterBase + 6296532) = 19;
-    Step = v11;
+    CRTC_WR(RegisterBase + 6296532) = 19; //*((_BYTE *)
+    Step = AvpDump;
     
 	if ( AvpDump )
       DbgPrint("%08X = %08X\n", 6296532, 19);
     
-	v12 = Pitch;
-    *((_BYTE *)RegisterBase + 6296533) = Pitch;
+	//v12 = Pitch;
+    CRTC_WR(RegisterBase + 6296533) = Pitch; //*((_BYTE *)
     
 	if ( AvpDump )
-      DbgPrint("%08X = %08X\n", 6296533, v12);
+      DbgPrint("%08X = %08X\n", 6296533, Pitch); //v12
     
 	AvpDump = Step;
     
@@ -412,19 +420,19 @@ LABEL_25:
       DbgPrint("CR%02X = %02X\n", 19, (unsigned __int8)Pitch);
     
 	HIBYTE(Pitch) = (Pitch >> 3) & 0xE0;
-    v13 = AvpDump;
+    //v13 = AvpDump;
     AvpDump = 0;
-    *((_BYTE *)RegisterBase + 6296532) = 25;
-    Step = v13;
+    CRTC_WR(RegisterBase + 6296532) = 25;//*((_BYTE *)
+    Step = AvpDump; // v13
     
 	if ( AvpDump )
       DbgPrint("%08X = %08X\n", 6296532, 25);
    
-   v14 = HIBYTE(Pitch);
-    *((_BYTE *)RegisterBase + 6296533) = HIBYTE(Pitch);
+   //v14 = HIBYTE(Pitch);
+    CRTC_WR(RegisterBase + 6296533) = HIBYTE(Pitch); //*((_BYTE *)
 
     if ( AvpDump )
-      DbgPrint("%08X = %08X\n", 6296533, v14);
+      DbgPrint("%08X = %08X\n", 6296533, HIBYTE(Pitch)); //v14
 
     AvpDump = Step;
 
@@ -432,30 +440,30 @@ LABEL_25:
       DbgPrint("CR%02X = %02X\n", 25, HIBYTE(Pitch));
 
     HIBYTE(Pitch) = HIBYTE(Format) | 0x80;
-    v15 = AvpDump;
+    //v15 = AvpDump;
     AvpDump = 0;
-    *((_BYTE *)RegisterBase + 6296532) = 40;
-    Step = v15;
+    CRTC_WR(RegisterBase + 6296532) = 40; //*((_BYTE *)
+    Step = AvpDump; //v15
 
     if ( AvpDump )
       DbgPrint("%08X = %08X\n", 6296532, 40);
 
-    v16 = HIBYTE(Pitch);
-    *((_BYTE *)RegisterBase + 6296533) = HIBYTE(Pitch);
+    //v16 = HIBYTE(Pitch);
+    CRTC_WR(RegisterBase + 6296533) = HIBYTE(Pitch); //*((_BYTE *)
 
     if ( AvpDump )
-      DbgPrint("%08X = %08X\n", 6296533, v16);
+      DbgPrint("%08X = %08X\n", 6296533, HIBYTE(Pitch)); //v16
 
     AvpDump = Step;
 
     if ( Step )
       DbgPrint("CR%02X = %02X\n", 40, HIBYTE(Pitch));
 
-    v17 = FrameBuffer;
-    *((_DWORD *)RegisterBase + 1573376) = FrameBuffer;
+    //v17 = FrameBuffer;
+    REG_WR32(RegisterBase + 1573376) = FrameBuffer; //*((_DWORD *)
 
     if ( AvpDump )
-      DbgPrint("%08X = %08X\n", 6293504, v17);
+      DbgPrint("%08X = %08X\n", 6293504, FrameBuffer); // v17
 
     AvSendTVEncoderOption(RegisterBase, 0xBu, 5u, 0);
     AvSendTVEncoderOption(RegisterBase, 0xEu, 0, 0);
@@ -471,93 +479,117 @@ LABEL_25:
   AvpCurrentMode = Mode; //v6
   if ( TVEncoderSMBusID == 0xD4 )
   {
-    v18 = AvpDump;
+    //v18 = AvpDump;
     AvpDump = 0;
     HalReadSMBusValue(0xD4u, 0xA0u, 1u, &Step);
-    v73 = (unsigned __int16)Step | 0xF;
-    Step = v73;
+    //v73 = (unsigned __int16)Step | 0xF;
+    //Step = v73;
     AvpDump = 0;
-    HalWriteSMBusValue(TVEncoderSMBusID, 0xA0u, 1u, v73);
-    AvpDump = v18;
-    if ( v18 )
+    HalWriteSMBusValue(TVEncoderSMBusID, 0xA0u, 1u, (unsigned __int16)Step | 0xF); //v73
+    //AvpDump = v18;
+    if ( AvpDump ) //v18
       DbgPrint("TV%04X = %04X\n", 160, Step);
   }
   if ( TVEncoderSMBusID == 0xE0 )
   {
-    v19 = AvpDump;
+    //v19 = AvpDump;
     AvpDump = 0;
     HalReadSMBusValue(0xE0u, 4u, 1u, &Step);
-    v20 = Step | 0xF;
     AvpDump = 0;
-    HalWriteSMBusValue(TVEncoderSMBusID, 4u, 1u, Step | 0xF);
-    AvpDump = v19;
-    if ( v19 )
-      DbgPrint("TV%04X = %04X\n", 4, v20);
-    v21 = AvpDump;
+    HalWriteSMBusValue(TVEncoderSMBusID, 4u, 1u, Step | 0xF); //v20
+    //AvpDump = v19;
+    if ( AvpDump ) //v19
+      DbgPrint("TV%04X = %04X\n", 4, Step | 0xF);
+    //v21 = AvpDump;
     AvpDump = 0;
     HalReadSMBusValue(TVEncoderSMBusID, 0, 1u, &Step);
-    v22 = Step & 0xFFFFFFFD;
+    //v22 = Step & 0xFFFFFFFD;
     AvpDump = 0;
     HalWriteSMBusValue(TVEncoderSMBusID, 0, 1u, Step & 0xFFFFFFFD);
-    AvpDump = v21;
-    if ( v21 )
-      DbgPrint("TV%04X = %04X\n", 0, v22);
+    //AvpDump = v21;
+    if ( AvpDump ) //v21
+      DbgPrint("TV%04X = %04X\n", 0, Step & 0xFFFFFFFD); //v22
   }
   __outbyte(0x80D3u, 5u);
   do
-    LgsValue = *((_DWORD *)RegisterBase + 1704360);
-  while ( (((unsigned __int8)~(_BYTE)LgsValue ^ (unsigned __int8)~(LgsValue >> 4)) & 1) != 0 );
-  v24 = AvpDump;
+    LgsValue = REG_RD32(RegisterBase + 1704360); //*((_DWORD *)
+  while ( !(LgsValue ^ (unsigned __int8)~(LgsValue >> 4)) & 1) != 0 );
+  //v24 = AvpDump;
   AvpDump = 0;
-  *((_BYTE *)RegisterBase + 6296532) = 31;
-  Step = v24;
+  CRTC_WR(RegisterBase + 6296532) = 31; //*((_BYTE *)
+  Step = AvpDump; //v24
+  
   if ( AvpDump )
-    DbgPrint("%08X = %08X\n", 6296532, 31);
-  *((_BYTE *)RegisterBase + 6296533) = 87;
+  
+  DbgPrint("%08X = %08X\n", 6296532, 31);
+  CRTC_WR(RegisterBase + 6296533) = 87; //*((_BYTE *)
+
   if ( AvpDump )
     DbgPrint("%08X = %08X\n", 6296533, 87);
+
   AvpDump = Step;
+
   if ( Step )
     DbgPrint("CR%02X = %02X\n", 31, 87);
-  v25 = AvpDump;
+
+  //v25 = AvpDump;
   AvpDump = 0;
-  *((_BYTE *)RegisterBase + 6296532) = 33;
-  Step = v25;
+  CRTC_WR(RegisterBase + 6296532) = 33; //*((_BYTE *)
+  Step = AvpDump; //v25
+
   if ( AvpDump )
     DbgPrint("%08X = %08X\n", 6296532, 33);
-  *((_BYTE *)RegisterBase + 6296533) = -1;
+
+  CRTC_WR(RegisterBase + 6296533) = -1; //*((_BYTE *)
+
   if ( AvpDump )
     DbgPrint("%08X = %08X\n", 6296533, 255);
+
   AvpDump = Step;
+
   if ( Step )
     DbgPrint("CR%02X = %02X\n", 33, 255);
-  v26 = AvpDump;
+
+  //v26 = AvpDump;
   AvpDump = 0;
-  *((_BYTE *)RegisterBase + 6296532) = 40;
-  Step = v26;
+  CRTC_WR(RegisterBase + 6296532) = 40; //*((_BYTE *)
+  Step = AvpDump; //v26
+
   if ( AvpDump )
     DbgPrint("%08X = %08X\n", 6296532, 40);
-  *((_BYTE *)RegisterBase + 6296533) = 0;
+
+  CRTC_WR(RegisterBase + 6296533) = 0; //*((_BYTE *)
+
   if ( AvpDump )
     DbgPrint("%08X = %08X\n", 6296533, 0);
+
   AvpDump = Step;
+
   if ( Step )
     DbgPrint("CR%02X = %02X\n", 40, 0);
-  *((_DWORD *)RegisterBase + 1704480) = 554832145;
+  REG_WR32(RegisterBase + 1704480) = 554832145; //*((_DWORD *)
+
   if ( AvpDump )
     DbgPrint("%08X = %08X\n", 6817920, 554832145);
+
   if ( TVEncoderSMBusID == 0x8A )
   {
     SMB_WR(RegisterBase, 0xBAu, 0x80u);
     SMB_WR(RegisterBase, 0xBAu, 0x3Fu);
     SMB_WR(RegisterBase, 0x6Cu, 0x46u);
+  
   }
-  KeStallExecutionProcessor(1u);
+  
+  
+  KeStallExecutionProcessor(1);
+  
   if ( TVEncoderSMBusID == 0x8A )
     SMB_WR(RegisterBase, 0x6Cu, 0xC6u);
+  
   if ( OutputMode == 0x80000000 )
   {
-    if ( TVEncoderSMBusID != 0xE0 )
+  
+  if ( TVEncoderSMBusID != 0xE0 )
     {
       v27 = &AV_TABLE_HDTVREGISTERS_DATA[iTV * AvpTableRowSize[2]];
       pByteMax = &v27[AvpTableRowSize[2]];
@@ -568,21 +600,24 @@ LABEL_25:
   }
   else if ( TVEncoderSMBusID != 0xE0 )
   {
-    v28 = *AvpTableRowSize;
-    v29 = &AV_TABLE_COMMONTVREGISTERS_DATA[v28];
-    pByteMaxa = &AV_TABLE_COMMONTVREGISTERS_DATA[v28 + v28];
+    //v28 = *AvpTableRowSize;
+    //v29 = &AV_TABLE_COMMONTVREGISTERS_DATA[*AvpTableRowSize]; //v28
+    pByteMaxa = &AV_TABLE_COMMONTVREGISTERS_DATA[*AvpTableRowSize + *AvpTableRowSize]; //v28 
     pRegBytea = AV_TABLE_COMMONTVREGISTERS_DATA;
-    if ( &AV_TABLE_COMMONTVREGISTERS_DATA[v28] < pByteMaxa )
+    if ( &AV_TABLE_COMMONTVREGISTERS_DATA[*AvpTableRowSize] < pByteMaxa ) //v28
     {
       do
-        SMB_WR(RegisterBase, *pRegBytea++, *v29++);
+        SMB_WR(RegisterBase, *pRegBytea++, *&AV_TABLE_COMMONTVREGISTERS_DATA[*AvpTableRowSize]++); //v29
       while ( v29 < pByteMaxa );
     }
   }
+  
   v30 = &AV_TABLE_TVREGISTERS_DATA[iTV * AvpTableRowSize[1]];
   pByteMaxb = &v30[AvpTableRowSize[1]];
+  
   for ( pRegByteb = AV_TABLE_TVREGISTERS_DATA; v30 < pByteMaxb; ++pRegByteb )
     SMB_WR(RegisterBase, *pRegByteb, *v30++);
+  
   if ( XboxGameRegion == 2 && (iTV == 13 || iTV == 14 || iTV == 18) )
   {
     if ( TVEncoderSMBusID == 0xE0 )
